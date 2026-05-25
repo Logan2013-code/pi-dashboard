@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiDash - Bot Manager</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+    <h1><span>&#9679;</span> PiDash</h1>
+    <div class="system-stats">
+        <div class="stat">
+            <div class="stat-label">CPU</div>
+            <div class="stat-value" id="stat-cpu">-</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">RAM</div>
+            <div class="stat-value" id="stat-mem">-</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Disk</div>
+            <div class="stat-value" id="stat-disk">-</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">Temp</div>
+            <div class="stat-value" id="stat-temp">-</div>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div class="toolbar">
+        <h2 id="bot-count">Laden...</h2>
+        <button class="btn btn-primary" onclick="openAddModal()">+ Toevoegen</button>
+    </div>
+    <div class="bot-grid" id="bot-grid"></div>
+</main>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="add-modal" onclick="if(event.target===this)closeModal('add-modal')">
+    <div class="modal">
+        <h2 id="modal-title">Bot toevoegen</h2>
+        <form id="bot-form" onsubmit="event.preventDefault();submitBot()">
+
+            <div class="form-group">
+                <label for="f-name">Naam</label>
+                <input type="text" id="f-name" placeholder="mijn-discord-bot" required>
+            </div>
+
+            <div class="form-group">
+                <label for="f-desc">Beschrijving (optioneel)</label>
+                <input type="text" id="f-desc" placeholder="Discord muziek bot">
+            </div>
+
+            <div class="form-group">
+                <label>Bron</label>
+                <div class="source-tabs">
+                    <div class="source-tab active" id="source-git" onclick="setSource('git')">Git URL</div>
+                    <div class="source-tab" id="source-upload" onclick="setSource('upload')">Upload ZIP</div>
+                </div>
+                <div id="git-source">
+                    <input type="text" id="f-git" placeholder="https://github.com/user/bot.git">
+                </div>
+                <div id="upload-source" style="display:none">
+                    <div class="upload-area" id="upload-area">
+                        <input type="file" id="upload-file" accept=".zip">
+                        <p>Klik of sleep een ZIP bestand hier</p>
+                        <p class="filename" id="upload-filename"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="f-command">Start commando (leeg = auto-detect)</label>
+                <input type="text" id="f-command" placeholder="python3 bot.py / node index.js / npm start">
+            </div>
+
+            <div class="form-group">
+                <label>Omgevingsvariabelen</label>
+                <div class="env-list" id="env-list"></div>
+                <button type="button" class="btn btn-sm" style="margin-top:8px" onclick="addEnvRow()">+ Variabele</button>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="toggle">
+                        <input type="checkbox" id="f-autorestart" checked>
+                        <span class="toggle-track"></span>
+                        Herstart bij crash
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="toggle">
+                        <input type="checkbox" id="f-autostart" checked>
+                        <span class="toggle-track"></span>
+                        Start bij boot
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('add-modal')">Annuleren</button>
+                <button type="submit" class="btn btn-primary">Opslaan &amp; Deploy</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Log viewer -->
+<div class="log-viewer" id="log-viewer">
+    <div class="log-header">
+        <h3 id="log-title">Logs</h3>
+        <button class="btn btn-sm" onclick="closeLogs()">Sluiten</button>
+    </div>
+    <div class="log-content" id="log-content"></div>
+</div>
+
+<!-- Toasts -->
+<div class="toast-container" id="toasts"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
