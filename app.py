@@ -236,12 +236,14 @@ def build_service_file(bot_name, bot_config):
     command = resolve_command(command)
 
     venv = bot_dir / "venv"
-    if venv.exists() and "python" in command:
+    if venv.exists():
         py = str(venv / "bin" / "python3")
-        command = command.replace("/usr/bin/python3 ", f"{py} ")
-        command = command.replace("/usr/bin/python ", f"{py} ")
-        command = command.replace("python3 ", f"{py} ")
-        command = command.replace("python ", f"{py} ")
+        # Only replace the executable (first word), not occurrences inside paths
+        parts = command.split(None, 1)
+        exe = parts[0]
+        args = parts[1] if len(parts) > 1 else ""
+        if exe in ("python3", "python", "/usr/bin/python3", "/usr/bin/python"):
+            command = f"{py} {args}".strip()
 
     env_lines = "\n".join(
         f"Environment={k}={v}" for k, v in bot_config.get("env", {}).items()
