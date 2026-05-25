@@ -11,17 +11,28 @@ from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(32)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload
 
 BASE_DIR = Path(__file__).parent
 BOTS_DIR = Path.home() / "bots"
 DATA_DIR = BASE_DIR / "data"
 CONFIG_FILE = DATA_DIR / "config.json"
+SECRET_FILE = DATA_DIR / "secret.key"
 SERVICE_PREFIX = "pidash-"
 HELPER = "/usr/local/bin/pidash-helper"
 
 BOTS_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
+
+# Persistent secret key — survives restarts
+if SECRET_FILE.exists():
+    app.secret_key = SECRET_FILE.read_text().strip()
+else:
+    app.secret_key = secrets.token_hex(32)
+    SECRET_FILE.write_text(app.secret_key)
+
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 60 * 60 * 24 * 30  # 30 dagen
 
 
 # ── Config ──────────────────────────────────────────────────────────────
