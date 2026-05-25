@@ -2,13 +2,16 @@ const API = '/api';
 let currentBots = [];
 let editingBot = null;
 let logInterval = null;
+let tunnelUrl = '';
 
 // --- Init ---
 document.addEventListener('DOMContentLoaded', () => {
     loadBots();
     loadSystem();
+    loadTunnel();
     setInterval(loadSystem, 5000);
     setInterval(loadBots, 8000);
+    setInterval(loadTunnel, 30000);
 });
 
 // --- API helpers ---
@@ -17,6 +20,10 @@ async function api(path, opts = {}) {
         headers: { 'Content-Type': 'application/json', ...opts.headers },
         ...opts,
     });
+    if (res.status === 401) {
+        window.location.href = '/login';
+        throw new Error('not authenticated');
+    }
     return res.json();
 }
 
@@ -44,6 +51,82 @@ async function loadSystem() {
             tempEl.closest('.stat').style.display = 'none';
         }
     } catch (e) { /* retry next interval */ }
+}
+
+// --- Tunnel ---
+async function loadTunnel() {
+    try {
+        const data = await api('/tunnel-url');
+        const badge = document.getElementById('tunnel-badge');
+        const text = document.getElementById('tunnel-text');
+        if (data.active && data.url) {
+            tunnelUrl = data.url;
+            badge.classList.remove('offline');
+            const short = data.url.replace('https://', '').replace('.trycloudflare.com', '');
+            text.textContent = short.substring(0, 20);
+            badge.title = 'Klik om tunnel URL te kopieren: ' + data.url;
+            badge.onclick = () => {
+                navigator.clipboard.writeText(data.url);
+                toast('Tunnel URL gekopieerd!');
+            };
+        } else {
+            tunnelUrl = '';
+            badge.classList.add('offline');
+            text.textContent = 'Lokaal';
+            badge.title = 'Geen tunnel actief';
+            badge.onclick = null;
+        }
+    } catch (e) { /* retry next interval */ }
+}
+
+// --- Auth ---
+async function doLogout() {
+    await fetch('/logout', { method: 'POST' });
+    window.location.href = '/login';
+}
+
+function toggleUserMenu() {
+    const dd = document.getElementById('user-dropdown');
+    dd.classList.toggle('active');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', e => {
+    const menu = document.querySelector('.user-menu');
+    if (menu && !menu.contains(e.target)) {
+        document.getElementById('user-dropdown').classList.remove('active');
+    }
+});
+
+function openPasswordModal() {
+    document.getElementById('user-dropdown').classList.remove('active');
+    document.getElementById('pw-old').value = '';
+    document.getElementById('pw-new').value = '';
+    document.getElementById('pw-confirm').value = '';
+    openModal('pw-modal');
+}
+
+async function changePassword() {
+    const oldPw = document.getElementById('pw-old').value;
+    const newPw = document.getElementById('pw-new').value;
+    const confirm = document.getElementById('pw-confirm').value;
+
+    if (newPw !== confirm) {
+        toast('Wachtwoorden komen niet overeen', 'error');
+        return;
+    }
+
+    const res = await api('/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ old_password: oldPw, new_password: newPw }),
+    });
+
+    if (res.status === 'ok') {
+        toast('Wachtwoord gewijzigd');
+        closeModal('pw-modal');
+    } else {
+        toast(res.error, 'error');
+    }
 }
 
 // --- Bots ---
@@ -209,7 +292,8 @@ function openModal(id) {
 
 function closeModal(id) {
     document.getElementById(id).classList.remove('active');
-    document.getElementById('f-name').disabled = false;
+    const nameField = document.getElementById('f-name');
+    if (nameField) nameField.disabled = false;
 }
 
 // --- Source tabs ---

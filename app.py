@@ -4,10 +4,14 @@ import subprocess
 import shutil
 import zipfile
 import tempfile
+import secrets
+import hashlib
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from functools import wraps
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 
 app = Flask(__name__)
+app.secret_key = secrets.token_hex(32)
 
 BASE_DIR = Path(__file__).parent
 BOTS_DIR = Path.home() / "bots"
@@ -20,15 +24,126 @@ BOTS_DIR.mkdir(exist_ok=True)
 DATA_DIR.mkdir(exist_ok=True)
 
 
+# ── Config ──────────────────────────────────────────────────────────────
+
 def load_config():
     if CONFIG_FILE.exists():
         return json.loads(CONFIG_FILE.read_text())
-    return {"bots": {}}
+    return {"bots": {}, "password_hash": ""}
 
 
 def save_config(config):
     CONFIG_FILE.write_text(json.dumps(config, indent=2))
 
+
+def hash_password(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+
+# ── Auth ────────────────────────────────────────────────────────────────
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        config = load_config()
+        if not config.get("password_hash"):
+            return f(*args, **kwargs)          # no password set yet
+        if not session.get("authenticated"):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Niet ingelogd"}), 401
+            return redirect(url_for("login_page"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route("/login", methods=["GET"])
+def login_page():
+    config = load_config()
+    if not config.get("password_hash"):
+        return redirect(url_for("setup_page"))
+    return render_template("login.html")
+
+
+@app.route("/login", methods=["POST"])
+def login_submit():
+    config = load_config()
+    data = request.json or {}
+    pw = data.get("password", "")
+    if hash_password(pw) == config.get("password_hash"):
+        session["authenticated"] = True
+        session.permanent = True
+        return jsonify({"status": "ok"})
+    return jsonify({"error": "Verkeerd wachtwoord"}), 403
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/setup", methods=["GET"])
+def setup_page():
+    config = load_config()
+    if config.get("password_hash"):
+        return redirect(url_for("login_page"))
+    return render_template("setup.html")
+
+
+@app.route("/setup", methods=["POST"])
+def setup_submit():
+    config = load_config()
+    if config.get("password_hash"):
+        return jsonify({"error": "Wachtwoord is al ingesteld"}), 400
+    data = request.json or {}
+    pw = data.get("password", "").strip()
+    if len(pw) < 4:
+        return jsonify({"error": "Wachtwoord moet minimaal 4 tekens zijn"}), 400
+    config["password_hash"] = hash_password(pw)
+    save_config(config)
+    session["authenticated"] = True
+    session.permanent = True
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/change-password", methods=["POST"])
+@login_required
+def change_password():
+    config = load_config()
+    data = request.json or {}
+    old = data.get("old_password", "")
+    new = data.get("new_password", "").strip()
+    if config.get("password_hash") and hash_password(old) != config["password_hash"]:
+        return jsonify({"error": "Huidig wachtwoord klopt niet"}), 403
+    if len(new) < 4:
+        return jsonify({"error": "Nieuw wachtwoord moet minimaal 4 tekens zijn"}), 400
+    config["password_hash"] = hash_password(new)
+    save_config(config)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/tunnel-url")
+@login_required
+def tunnel_url():
+    """Return the current cloudflared tunnel URL if running."""
+    try:
+        r = subprocess.run(
+            ["systemctl", "is-active", "pidash-tunnel"],
+            capture_output=True, text=True, timeout=5
+        )
+        active = r.stdout.strip() == "active"
+    except Exception:
+        active = False
+
+    url = ""
+    url_file = DATA_DIR / "tunnel_url.txt"
+    if url_file.exists():
+        url = url_file.read_text().strip()
+
+    return jsonify({"active": active, "url": url})
+
+
+# ── Helpers ─────────────────────────────────────────────────────────────
 
 def run_helper(*args):
     try:
@@ -141,14 +256,16 @@ def install_deps(bot_dir):
     return messages
 
 
-# --- Routes ---
+# ── Routes ──────────────────────────────────────────────────────────────
 
 @app.route("/")
+@login_required
 def index():
     return render_template("index.html")
 
 
 @app.route("/api/system")
+@login_required
 def system_info():
     import psutil
     cpu = psutil.cpu_percent(interval=0.5)
@@ -174,6 +291,7 @@ def system_info():
 
 
 @app.route("/api/bots")
+@login_required
 def list_bots():
     config = load_config()
     bots = []
@@ -192,6 +310,7 @@ def list_bots():
 
 
 @app.route("/api/bots", methods=["POST"])
+@login_required
 def add_bot():
     data = request.json
     name = data.get("name", "").strip().lower()
@@ -240,6 +359,7 @@ def add_bot():
 
 
 @app.route("/api/bots/upload", methods=["POST"])
+@login_required
 def upload_bot():
     name = request.form.get("name", "").strip().lower()
     name = "".join(c if c.isalnum() or c == "-" else "-" for c in name).strip("-")
@@ -300,6 +420,7 @@ def upload_bot():
 
 
 @app.route("/api/bots/<name>", methods=["PUT"])
+@login_required
 def update_bot(name):
     config = load_config()
     if name not in config.get("bots", {}):
@@ -318,6 +439,7 @@ def update_bot(name):
 
 
 @app.route("/api/bots/<name>", methods=["DELETE"])
+@login_required
 def delete_bot(name):
     config = load_config()
     if name not in config.get("bots", {}):
@@ -338,6 +460,7 @@ def delete_bot(name):
 
 
 @app.route("/api/bots/<name>/<action>", methods=["POST"])
+@login_required
 def bot_action(name, action):
     if action not in ("start", "stop", "restart"):
         return jsonify({"error": "Ongeldige actie"}), 400
@@ -350,6 +473,7 @@ def bot_action(name, action):
 
 
 @app.route("/api/bots/<name>/logs")
+@login_required
 def bot_logs(name):
     lines = request.args.get("lines", "150")
     code, out, err = run_helper("logs", name, lines)
@@ -357,6 +481,7 @@ def bot_logs(name):
 
 
 @app.route("/api/bots/<name>/pull", methods=["POST"])
+@login_required
 def bot_pull(name):
     bot_dir = BOTS_DIR / name
     if not (bot_dir / ".git").exists():

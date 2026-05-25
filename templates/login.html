@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiDash - Login</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .auth-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .auth-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .auth-card h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .auth-card h1 span { color: var(--accent); }
+        .auth-card p {
+            color: var(--text2);
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        .auth-card .form-group { text-align: left; }
+        .auth-card .btn-primary {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            margin-top: 8px;
+        }
+        .auth-error {
+            color: var(--red);
+            font-size: 13px;
+            margin-top: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="auth-page">
+    <div class="auth-card">
+        <h1><span>&#9679;</span> PiDash</h1>
+        <p>Log in om je bots te beheren</p>
+        <form onsubmit="event.preventDefault();doLogin()">
+            <div class="form-group">
+                <label for="password">Wachtwoord</label>
+                <input type="password" id="password" autofocus required>
+            </div>
+            <button type="submit" class="btn btn-primary">Inloggen</button>
+            <div class="auth-error" id="error"></div>
+        </form>
+    </div>
+</div>
+<script>
+async function doLogin() {
+    const pw = document.getElementById('password').value;
+    const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+        window.location.href = '/';
+    } else {
+        const err = document.getElementById('error');
+        err.textContent = data.error || 'Inloggen mislukt';
+        err.style.display = 'block';
+    }
+}
+</script>
+</body>
+</html>

@@ -5,6 +5,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PiDash - Bot Manager</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .tunnel-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(63,185,80,0.15);
+            color: var(--green);
+            border: 1px solid rgba(63,185,80,0.3);
+            cursor: pointer;
+        }
+        .tunnel-badge.offline {
+            background: rgba(139,148,158,0.15);
+            color: var(--text2);
+            border-color: var(--border);
+        }
+        .tunnel-badge .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+        .tunnel-badge.offline .dot { background: var(--text2); }
+        .user-menu { position: relative; }
+        .user-btn {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: var(--border);
+            border: none;
+            color: var(--text);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .user-btn:hover { background: var(--text2); }
+        .user-dropdown {
+            display: none;
+            position: absolute;
+            top: 40px; right: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-width: 180px;
+            padding: 6px;
+            z-index: 60;
+        }
+        .user-dropdown.active { display: block; }
+        .user-dropdown button {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            text-align: left;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .user-dropdown button:hover { background: var(--bg); }
+        .user-dropdown hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 4px 0;
+        }
+    </style>
 </head>
 <body>
 
@@ -26,6 +96,20 @@
         <div class="stat">
             <div class="stat-label">Temp</div>
             <div class="stat-value" id="stat-temp">-</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="tunnel-badge offline" id="tunnel-badge" title="Klik om tunnel URL te kopieren">
+            <span class="dot"></span>
+            <span id="tunnel-text">Lokaal</span>
+        </div>
+        <div class="user-menu">
+            <button class="user-btn" onclick="toggleUserMenu()" title="Account">&#9881;</button>
+            <div class="user-dropdown" id="user-dropdown">
+                <button onclick="openPasswordModal()">Wachtwoord wijzigen</button>
+                <hr>
+                <button onclick="doLogout()" style="color:var(--red)">Uitloggen</button>
+            </div>
         </div>
     </div>
 </header>
@@ -103,6 +187,31 @@
             <div class="modal-footer">
                 <button type="button" class="btn" onclick="closeModal('add-modal')">Annuleren</button>
                 <button type="submit" class="btn btn-primary">Opslaan &amp; Deploy</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Password change modal -->
+<div class="modal-overlay" id="pw-modal" onclick="if(event.target===this)closeModal('pw-modal')">
+    <div class="modal" style="max-width:400px">
+        <h2>Wachtwoord wijzigen</h2>
+        <form onsubmit="event.preventDefault();changePassword()">
+            <div class="form-group">
+                <label for="pw-old">Huidig wachtwoord</label>
+                <input type="password" id="pw-old" required>
+            </div>
+            <div class="form-group">
+                <label for="pw-new">Nieuw wachtwoord</label>
+                <input type="password" id="pw-new" required>
+            </div>
+            <div class="form-group">
+                <label for="pw-confirm">Bevestig nieuw wachtwoord</label>
+                <input type="password" id="pw-confirm" required>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('pw-modal')">Annuleren</button>
+                <button type="submit" class="btn btn-primary">Opslaan</button>
             </div>
         </form>
     </div>
