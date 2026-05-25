@@ -153,6 +153,8 @@ function renderBots() {
         return;
     }
 
+    const statusLabel = s => ({active:'Actief', inactive:'Gestopt', activating:'Starten...', failed:'Gefaald'}[s] || s);
+
     grid.innerHTML = currentBots.map(bot => `
         <div class="bot-card" data-name="${bot.name}">
             <div class="bot-card-header">
@@ -160,15 +162,15 @@ function renderBots() {
                     <span class="status-dot ${bot.status}"></span>
                     ${esc(bot.name)}
                 </div>
-                <span class="bot-status-text">${bot.status}</span>
+                <span class="bot-status-text ${bot.status}">${statusLabel(bot.status)}</span>
             </div>
             <div class="bot-desc">${esc(bot.description) || '<em style="opacity:0.4">Geen beschrijving</em>'}</div>
             <div class="bot-command">${esc(bot.command) || '(geen commando)'}</div>
             <div class="bot-actions">
                 ${bot.status === 'active'
-                    ? `<button class="btn btn-sm" onclick="botAction('${bot.name}','stop')">Stop</button>
-                       <button class="btn btn-sm" onclick="botAction('${bot.name}','restart')">Herstart</button>`
-                    : `<button class="btn btn-sm btn-primary" onclick="botAction('${bot.name}','start')">Start</button>`}
+                    ? `<button class="btn btn-sm btn-warning" onclick="botAction('${bot.name}','stop')">Stop</button>
+                       <button class="btn btn-sm btn-primary" onclick="botAction('${bot.name}','restart')">Herstart</button>`
+                    : `<button class="btn btn-sm btn-success" onclick="botAction('${bot.name}','start')">Start</button>`}
                 <button class="btn btn-sm" onclick="showLogs('${bot.name}')">Logs</button>
                 ${bot.git_url ? `<button class="btn btn-sm" onclick="gitPull('${bot.name}')">Pull</button>` : ''}
                 <button class="btn btn-sm" onclick="openEditModal('${bot.name}')">Bewerk</button>
