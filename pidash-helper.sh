@@ -14,6 +14,9 @@ case "$ACTION" in
     status)
         systemctl is-active "${PREFIX}${NAME}" 2>/dev/null || true
         ;;
+    status-detail)
+        systemctl status "${PREFIX}${NAME}" --no-pager 2>/dev/null || true
+        ;;
     start|stop|restart|enable|disable)
         systemctl "$ACTION" "${PREFIX}${NAME}"
         ;;

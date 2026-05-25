@@ -158,7 +158,38 @@ def run_helper(*args):
 
 def get_service_status(bot_name):
     code, out, _ = run_helper("status", bot_name)
-    return out if code == 0 else "inactive"
+    status = out.strip() if out.strip() else "inactive"
+    # systemctl is-active returns the real status on stdout regardless of exit code
+    if status in ("active", "inactive", "activating", "deactivating", "failed"):
+        return status
+    return "inactive"
+
+
+def resolve_command(command):
+    """Resolve the executable in a command to its absolute path for systemd."""
+    if not command or command.startswith("/"):
+        return command
+    parts = command.split(None, 1)
+    executable = parts[0]
+    # Already absolute
+    if executable.startswith("/"):
+        return command
+    # Look up on the system
+    full_path = shutil.which(executable)
+    if full_path:
+        parts[0] = full_path
+        return " ".join(parts)
+    # Common fallbacks for Pi
+    common = {
+        "python3": "/usr/bin/python3",
+        "python": "/usr/bin/python3",
+        "node": "/usr/bin/node",
+        "npm": "/usr/bin/npm",
+    }
+    if executable in common:
+        parts[0] = common[executable]
+        return " ".join(parts)
+    return command
 
 
 def detect_start_command(bot_dir):
@@ -167,20 +198,21 @@ def detect_start_command(bot_dir):
         try:
             data = json.loads(pkg.read_text())
             if "start" in data.get("scripts", {}):
-                return "npm start"
-            return f"node {data.get('main', 'index.js')}"
+                return "/usr/bin/npm start"
+            main = data.get("main", "index.js")
+            return f"/usr/bin/node {main}"
         except json.JSONDecodeError:
             pass
 
     for name in ["bot.py", "main.py", "app.py", "run.py"]:
         if (bot_dir / name).exists():
-            return f"python3 {name}"
+            return f"/usr/bin/python3 {name}"
 
     procfile = bot_dir / "Procfile"
     if procfile.exists():
         for line in procfile.read_text().splitlines():
             if ":" in line:
-                return line.split(":", 1)[1].strip()
+                return resolve_command(line.split(":", 1)[1].strip())
 
     return ""
 
@@ -189,10 +221,16 @@ def build_service_file(bot_name, bot_config):
     bot_dir = BOTS_DIR / bot_name
     command = bot_config["command"]
 
+    # Ensure absolute path for systemd
+    command = resolve_command(command)
+
     venv = bot_dir / "venv"
     if venv.exists() and "python" in command:
         py = str(venv / "bin" / "python3")
-        command = command.replace("python3 ", f"{py} ").replace("python ", f"{py} ")
+        command = command.replace("/usr/bin/python3 ", f"{py} ")
+        command = command.replace("/usr/bin/python ", f"{py} ")
+        command = command.replace("python3 ", f"{py} ")
+        command = command.replace("python ", f"{py} ")
 
     env_lines = "\n".join(
         f"Environment={k}={v}" for k, v in bot_config.get("env", {}).items()
@@ -211,6 +249,7 @@ WorkingDirectory={bot_dir}
 ExecStart={command}
 Restart={restart}
 RestartSec=10
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 {env_lines}
 
 [Install]
@@ -339,6 +378,10 @@ def add_bot():
     command = data.get("command", "").strip()
     if not command:
         command = detect_start_command(bot_dir)
+    command = resolve_command(command)
+
+    if not command:
+        return jsonify({"error": "Geen start commando gevonden. Vul er handmatig een in (bijv. /usr/bin/python3 bot.py)"}), 400
 
     dep_msgs = install_deps(bot_dir)
 
